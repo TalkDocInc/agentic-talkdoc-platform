@@ -11,18 +11,42 @@ from pydantic import BaseModel, Field
 from structlog import get_logger
 
 from agents.care_coordination import (
+    AppointmentRemindersAgent,
+    AppointmentRemindersInput,
+    CarePlanManagementAgent,
+    CarePlanManagementInput,
+    ClinicalDocumentationAgent,
+    ClinicalDocumentationInput,
+    LabResultsProcessingAgent,
+    LabResultsProcessingInput,
     PatientIntakeAgent,
     PatientIntakeInput,
+    ReferralManagementAgent,
+    ReferralManagementInput,
     SmartSchedulingAgent,
     SmartSchedulingInput,
+)
+from agents.patient_engagement import (
+    AIHealthAdvisorAgent,
+    AIHealthAdvisorInput,
+    PrescriptionManagementAgent,
+    PrescriptionManagementInput,
+    TriageAgent,
+    TriageInput,
 )
 from agents.revenue_cycle import (
     ClaimsGenerationAgent,
     ClaimsGenerationInput,
+    ClaimsStatusTrackingAgent,
+    ClaimsStatusTrackingInput,
+    DenialManagementAgent,
+    DenialManagementInput,
     InsuranceVerificationAgent,
     InsuranceVerificationInput,
     MedicalCodingAgent,
     MedicalCodingInput,
+    PaymentPostingAgent,
+    PaymentPostingInput,
 )
 from ..agent_orchestration.audit import AgentAuditService
 from ..auth.dependencies import get_current_user, require_role
@@ -226,6 +250,171 @@ async def generate_claim(
     )
 
 
+@router.post(
+    "/claims-status-tracking",
+    response_model=AgentExecutionResponse,
+    summary="Track Claims Status",
+    description="Execute claims status tracking agent to monitor submitted claims and detect issues",
+)
+async def track_claims_status(
+    request: ClaimsStatusTrackingInput,
+    current_user: User = Depends(get_current_user),
+) -> AgentExecutionResponse:
+    """Execute claims status tracking agent."""
+    tenant_context = get_tenant_context()
+    if not tenant_context:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Tenant context not available",
+        )
+
+    # Check if agent is enabled
+    if not tenant_context.is_agent_enabled("claims_status_tracking"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Claims status tracking agent is not enabled for this tenant",
+        )
+
+    logger.info(
+        "executing_claims_status_tracking_agent",
+        user_id=current_user.user_id,
+        tenant_id=tenant_context.tenant_id,
+        claims_count=len(request.claims_to_check),
+    )
+
+    # Execute agent
+    agent = ClaimsStatusTrackingAgent()
+    result = await agent.execute(
+        input_data=request,
+        user_id=current_user.user_id,
+        context={},
+    )
+
+    return AgentExecutionResponse(
+        execution_id=result.execution_id,
+        agent_type=result.agent_type,
+        agent_version=result.agent_version,
+        status=result.status.value,
+        output=result.output.model_dump() if result.output else None,
+        confidence=result.confidence,
+        execution_time_ms=result.execution_time_ms,
+        needs_human_review=result.needs_human_review,
+        review_reason=result.review_reason,
+        error=result.error,
+    )
+
+
+@router.post(
+    "/denial-management",
+    response_model=AgentExecutionResponse,
+    summary="Analyze Claim Denial and Generate Appeal",
+    description="Execute denial management agent to analyze denials and automate appeals process",
+)
+async def analyze_denial(
+    request: DenialManagementInput,
+    current_user: User = Depends(get_current_user),
+) -> AgentExecutionResponse:
+    """Execute denial management agent."""
+    tenant_context = get_tenant_context()
+    if not tenant_context:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Tenant context not available",
+        )
+
+    # Check if agent is enabled
+    if not tenant_context.is_agent_enabled("denial_management"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Denial management agent is not enabled for this tenant",
+        )
+
+    logger.info(
+        "executing_denial_management_agent",
+        user_id=current_user.user_id,
+        tenant_id=tenant_context.tenant_id,
+        claim_id=request.denial.claim_id,
+        denied_amount=request.denial.denied_amount,
+    )
+
+    # Execute agent
+    agent = DenialManagementAgent(llm_provider=request.llm_provider)
+    result = await agent.execute(
+        input_data=request,
+        user_id=current_user.user_id,
+        context={"llm_provider": request.llm_provider},
+    )
+
+    return AgentExecutionResponse(
+        execution_id=result.execution_id,
+        agent_type=result.agent_type,
+        agent_version=result.agent_version,
+        status=result.status.value,
+        output=result.output.model_dump() if result.output else None,
+        confidence=result.confidence,
+        execution_time_ms=result.execution_time_ms,
+        needs_human_review=result.needs_human_review,
+        review_reason=result.review_reason,
+        error=result.error,
+    )
+
+
+@router.post(
+    "/payment-posting",
+    response_model=AgentExecutionResponse,
+    summary="Process ERA and Post Payments",
+    description="Execute payment posting agent to process ERA and reconcile payments with automatic variance detection",
+)
+async def post_payment(
+    request: PaymentPostingInput,
+    current_user: User = Depends(get_current_user),
+) -> AgentExecutionResponse:
+    """Execute payment posting agent."""
+    tenant_context = get_tenant_context()
+    if not tenant_context:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Tenant context not available",
+        )
+
+    # Check if agent is enabled
+    if not tenant_context.is_agent_enabled("payment_posting"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Payment posting agent is not enabled for this tenant",
+        )
+
+    logger.info(
+        "executing_payment_posting_agent",
+        user_id=current_user.user_id,
+        tenant_id=tenant_context.tenant_id,
+        era_id=request.era_data.era_id,
+        payment_amount=request.era_data.total_payment_amount,
+        action=request.action,
+    )
+
+    # Execute agent
+    agent = PaymentPostingAgent()
+    result = await agent.execute(
+        input_data=request,
+        user_id=current_user.user_id,
+        context={},
+    )
+
+    return AgentExecutionResponse(
+        execution_id=result.execution_id,
+        agent_type=result.agent_type,
+        agent_version=result.agent_version,
+        status=result.status.value,
+        output=result.output.model_dump() if result.output else None,
+        confidence=result.confidence,
+        execution_time_ms=result.execution_time_ms,
+        needs_human_review=result.needs_human_review,
+        review_reason=result.review_reason,
+        error=result.error,
+    )
+
+
 # Care Coordination Agent Endpoints
 
 
@@ -266,6 +455,505 @@ async def process_patient_intake(
         input_data=request,
         user_id=current_user.user_id,
         context={},
+    )
+
+    return AgentExecutionResponse(
+        execution_id=result.execution_id,
+        agent_type=result.agent_type,
+        agent_version=result.agent_version,
+        status=result.status.value,
+        output=result.output.model_dump() if result.output else None,
+        confidence=result.confidence,
+        execution_time_ms=result.execution_time_ms,
+        needs_human_review=result.needs_human_review,
+        review_reason=result.review_reason,
+        error=result.error,
+    )
+
+
+@router.post(
+    "/smart-scheduling",
+    response_model=AgentExecutionResponse,
+    summary="Match Patient with Clinicians",
+    description="Execute smart scheduling agent to match patients with optimal clinicians based on multiple factors",
+)
+async def match_patient_to_clinician(
+    request: SmartSchedulingInput,
+    current_user: User = Depends(get_current_user),
+) -> AgentExecutionResponse:
+    """Execute smart scheduling agent."""
+    tenant_context = get_tenant_context()
+    if not tenant_context:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Tenant context not available",
+        )
+
+    # Check if agent is enabled
+    if not tenant_context.is_agent_enabled("smart_scheduling"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Smart scheduling agent is not enabled for this tenant",
+        )
+
+    logger.info(
+        "executing_smart_scheduling_agent",
+        user_id=current_user.user_id,
+        tenant_id=tenant_context.tenant_id,
+        patient_id=request.patient_id,
+        specialty=request.specialty_required,
+    )
+
+    # Execute agent
+    agent = SmartSchedulingAgent()
+    result = await agent.execute(
+        input_data=request,
+        user_id=current_user.user_id,
+        context={},
+    )
+
+    return AgentExecutionResponse(
+        execution_id=result.execution_id,
+        agent_type=result.agent_type,
+        agent_version=result.agent_version,
+        status=result.status.value,
+        output=result.output.model_dump() if result.output else None,
+        confidence=result.confidence,
+        execution_time_ms=result.execution_time_ms,
+        needs_human_review=result.needs_human_review,
+        review_reason=result.review_reason,
+        error=result.error,
+    )
+
+
+@router.post(
+    "/appointment-reminders",
+    response_model=AgentExecutionResponse,
+    summary="Schedule Appointment Reminders",
+    description="Execute appointment reminders agent to schedule automated notifications across multiple channels",
+)
+async def schedule_appointment_reminders(
+    request: AppointmentRemindersInput,
+    current_user: User = Depends(get_current_user),
+) -> AgentExecutionResponse:
+    """Execute appointment reminders agent."""
+    tenant_context = get_tenant_context()
+    if not tenant_context:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Tenant context not available",
+        )
+
+    # Check if agent is enabled
+    if not tenant_context.is_agent_enabled("appointment_reminders"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Appointment reminders agent is not enabled for this tenant",
+        )
+
+    logger.info(
+        "executing_appointment_reminders_agent",
+        user_id=current_user.user_id,
+        tenant_id=tenant_context.tenant_id,
+        appointment_id=request.appointment.appointment_id,
+        patient_id=request.patient_contact.patient_id,
+    )
+
+    # Execute agent
+    agent = AppointmentRemindersAgent()
+    result = await agent.execute(
+        input_data=request,
+        user_id=current_user.user_id,
+        context={},
+    )
+
+    return AgentExecutionResponse(
+        execution_id=result.execution_id,
+        agent_type=result.agent_type,
+        agent_version=result.agent_version,
+        status=result.status.value,
+        output=result.output.model_dump() if result.output else None,
+        confidence=result.confidence,
+        execution_time_ms=result.execution_time_ms,
+        needs_human_review=result.needs_human_review,
+        review_reason=result.review_reason,
+        error=result.error,
+    )
+
+
+@router.post(
+    "/care-plan-management",
+    response_model=AgentExecutionResponse,
+    summary="Create or Manage Care Plan",
+    description="Execute care plan management agent to create, update, or evaluate patient care plans",
+)
+async def manage_care_plan(
+    request: CarePlanManagementInput,
+    current_user: User = Depends(get_current_user),
+) -> AgentExecutionResponse:
+    """Execute care plan management agent."""
+    tenant_context = get_tenant_context()
+    if not tenant_context:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Tenant context not available",
+        )
+
+    # Check if agent is enabled
+    if not tenant_context.is_agent_enabled("care_plan_management"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Care plan management agent is not enabled for this tenant",
+        )
+
+    logger.info(
+        "executing_care_plan_management_agent",
+        user_id=current_user.user_id,
+        tenant_id=tenant_context.tenant_id,
+        patient_id=request.patient_profile.patient_id,
+        action=request.action,
+    )
+
+    # Execute agent
+    agent = CarePlanManagementAgent(llm_provider=request.llm_provider)
+    result = await agent.execute(
+        input_data=request,
+        user_id=current_user.user_id,
+        context={"llm_provider": request.llm_provider},
+    )
+
+    return AgentExecutionResponse(
+        execution_id=result.execution_id,
+        agent_type=result.agent_type,
+        agent_version=result.agent_version,
+        status=result.status.value,
+        output=result.output.model_dump() if result.output else None,
+        confidence=result.confidence,
+        execution_time_ms=result.execution_time_ms,
+        needs_human_review=result.needs_human_review,
+        review_reason=result.review_reason,
+        error=result.error,
+    )
+
+
+@router.post(
+    "/clinical-documentation",
+    response_model=AgentExecutionResponse,
+    summary="Generate Clinical Documentation",
+    description="Execute clinical documentation agent to generate AI-assisted progress notes and encounter summaries",
+)
+async def generate_clinical_documentation(
+    request: ClinicalDocumentationInput,
+    current_user: User = Depends(get_current_user),
+) -> AgentExecutionResponse:
+    """Execute clinical documentation agent."""
+    tenant_context = get_tenant_context()
+    if not tenant_context:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Tenant context not available",
+        )
+
+    # Check if agent is enabled
+    if not tenant_context.is_agent_enabled("clinical_documentation"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Clinical documentation agent is not enabled for this tenant",
+        )
+
+    logger.info(
+        "executing_clinical_documentation_agent",
+        user_id=current_user.user_id,
+        tenant_id=tenant_context.tenant_id,
+        patient_id=request.encounter.patient_id,
+        documentation_type=request.documentation_type,
+    )
+
+    # Execute agent
+    agent = ClinicalDocumentationAgent(llm_provider=request.llm_provider)
+    result = await agent.execute(
+        input_data=request,
+        user_id=current_user.user_id,
+        context={"llm_provider": request.llm_provider},
+    )
+
+    return AgentExecutionResponse(
+        execution_id=result.execution_id,
+        agent_type=result.agent_type,
+        agent_version=result.agent_version,
+        status=result.status.value,
+        output=result.output.model_dump() if result.output else None,
+        confidence=result.confidence,
+        execution_time_ms=result.execution_time_ms,
+        needs_human_review=result.needs_human_review,
+        review_reason=result.review_reason,
+        error=result.error,
+    )
+
+
+@router.post(
+    "/referral-management",
+    response_model=AgentExecutionResponse,
+    summary="Manage Specialist Referrals",
+    description="Execute referral management agent to coordinate specialist referrals, track status, and ensure clinical handoffs",
+)
+async def manage_referral(
+    request: ReferralManagementInput,
+    current_user: User = Depends(get_current_user),
+) -> AgentExecutionResponse:
+    """Execute referral management agent."""
+    tenant_context = get_tenant_context()
+    if not tenant_context:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Tenant context not available",
+        )
+
+    # Check if agent is enabled
+    if not tenant_context.is_agent_enabled("referral_management"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Referral management agent is not enabled for this tenant",
+        )
+
+    logger.info(
+        "executing_referral_management_agent",
+        user_id=current_user.user_id,
+        tenant_id=tenant_context.tenant_id,
+        patient_id=request.patient_id,
+        specialty_needed=request.specialty_needed,
+        action=request.action,
+    )
+
+    # Execute agent
+    agent = ReferralManagementAgent(llm_provider="anthropic")
+    result = await agent.execute(
+        input_data=request,
+        user_id=current_user.user_id,
+        context={},
+    )
+
+    return AgentExecutionResponse(
+        execution_id=result.execution_id,
+        agent_type=result.agent_type,
+        agent_version=result.agent_version,
+        status=result.status.value,
+        output=result.output.model_dump() if result.output else None,
+        confidence=result.confidence,
+        execution_time_ms=result.execution_time_ms,
+        needs_human_review=result.needs_human_review,
+        review_reason=result.review_reason,
+        error=result.error,
+    )
+
+
+@router.post(
+    "/lab-results-processing",
+    response_model=AgentExecutionResponse,
+    summary="Process Lab Results",
+    description="Execute lab results processing agent to interpret results, flag abnormal values, and notify patients",
+)
+async def process_lab_results(
+    request: LabResultsProcessingInput,
+    current_user: User = Depends(get_current_user),
+) -> AgentExecutionResponse:
+    """Execute lab results processing agent."""
+    tenant_context = get_tenant_context()
+    if not tenant_context:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Tenant context not available",
+        )
+
+    # Check if agent is enabled
+    if not tenant_context.is_agent_enabled("lab_results_processing"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Lab results processing agent is not enabled for this tenant",
+        )
+
+    logger.info(
+        "executing_lab_results_processing_agent",
+        user_id=current_user.user_id,
+        tenant_id=tenant_context.tenant_id,
+        order_id=request.order_id,
+        test_count=len(request.lab_tests),
+    )
+
+    # Execute agent
+    agent = LabResultsProcessingAgent(llm_provider=request.llm_provider)
+    result = await agent.execute(
+        input_data=request,
+        user_id=current_user.user_id,
+        context={"llm_provider": request.llm_provider},
+    )
+
+    return AgentExecutionResponse(
+        execution_id=result.execution_id,
+        agent_type=result.agent_type,
+        agent_version=result.agent_version,
+        status=result.status.value,
+        output=result.output.model_dump() if result.output else None,
+        confidence=result.confidence,
+        execution_time_ms=result.execution_time_ms,
+        needs_human_review=result.needs_human_review,
+        review_reason=result.review_reason,
+        error=result.error,
+    )
+
+
+# Patient Engagement Agent Endpoints
+
+
+@router.post(
+    "/ai-health-advisor",
+    response_model=AgentExecutionResponse,
+    summary="AI Health Advisor Chat",
+    description="Execute AI health advisor agent for conversational health guidance with safety checks",
+)
+async def chat_with_ai_advisor(
+    request: AIHealthAdvisorInput,
+    current_user: User = Depends(get_current_user),
+) -> AgentExecutionResponse:
+    """Execute AI health advisor agent."""
+    tenant_context = get_tenant_context()
+    if not tenant_context:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Tenant context not available",
+        )
+
+    # Check if agent is enabled
+    if not tenant_context.is_agent_enabled("ai_health_advisor"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="AI health advisor agent is not enabled for this tenant",
+        )
+
+    logger.info(
+        "executing_ai_health_advisor_agent",
+        user_id=current_user.user_id,
+        tenant_id=tenant_context.tenant_id,
+        patient_id=request.patient_context.patient_id,
+        specialty=request.specialty_context,
+    )
+
+    # Execute agent
+    agent = AIHealthAdvisorAgent(llm_provider=request.llm_provider)
+    result = await agent.execute(
+        input_data=request,
+        user_id=current_user.user_id,
+        context={"llm_provider": request.llm_provider},
+    )
+
+    return AgentExecutionResponse(
+        execution_id=result.execution_id,
+        agent_type=result.agent_type,
+        agent_version=result.agent_version,
+        status=result.status.value,
+        output=result.output.model_dump() if result.output else None,
+        confidence=result.confidence,
+        execution_time_ms=result.execution_time_ms,
+        needs_human_review=result.needs_human_review,
+        review_reason=result.review_reason,
+        error=result.error,
+    )
+
+
+@router.post(
+    "/prescription-management",
+    response_model=AgentExecutionResponse,
+    summary="Manage Prescriptions and Refills",
+    description="Execute prescription management agent for refills, adherence monitoring, and issue detection",
+)
+async def manage_prescriptions(
+    request: PrescriptionManagementInput,
+    current_user: User = Depends(get_current_user),
+) -> AgentExecutionResponse:
+    """Execute prescription management agent."""
+    tenant_context = get_tenant_context()
+    if not tenant_context:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Tenant context not available",
+        )
+
+    # Check if agent is enabled
+    if not tenant_context.is_agent_enabled("prescription_management"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Prescription management agent is not enabled for this tenant",
+        )
+
+    logger.info(
+        "executing_prescription_management_agent",
+        user_id=current_user.user_id,
+        tenant_id=tenant_context.tenant_id,
+        patient_id=request.patient_profile.patient_id,
+        action=request.action,
+    )
+
+    # Execute agent
+    agent = PrescriptionManagementAgent()
+    result = await agent.execute(
+        input_data=request,
+        user_id=current_user.user_id,
+        context={},
+    )
+
+    return AgentExecutionResponse(
+        execution_id=result.execution_id,
+        agent_type=result.agent_type,
+        agent_version=result.agent_version,
+        status=result.status.value,
+        output=result.output.model_dump() if result.output else None,
+        confidence=result.confidence,
+        execution_time_ms=result.execution_time_ms,
+        needs_human_review=result.needs_human_review,
+        review_reason=result.review_reason,
+        error=result.error,
+    )
+
+
+@router.post(
+    "/triage",
+    response_model=AgentExecutionResponse,
+    summary="Triage Patient Symptoms",
+    description="Execute triage agent to assess symptoms, determine urgency, and route to appropriate care",
+)
+async def triage_patient(
+    request: TriageInput,
+    current_user: User = Depends(get_current_user),
+) -> AgentExecutionResponse:
+    """Execute triage agent."""
+    tenant_context = get_tenant_context()
+    if not tenant_context:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Tenant context not available",
+        )
+
+    # Check if agent is enabled
+    if not tenant_context.is_agent_enabled("triage"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Triage agent is not enabled for this tenant",
+        )
+
+    logger.info(
+        "executing_triage_agent",
+        user_id=current_user.user_id,
+        tenant_id=tenant_context.tenant_id,
+        patient_id=request.patient_context.patient_id,
+        chief_complaint=request.chief_complaint,
+    )
+
+    # Execute agent
+    agent = TriageAgent(llm_provider=request.llm_provider)
+    result = await agent.execute(
+        input_data=request,
+        user_id=current_user.user_id,
+        context={"llm_provider": request.llm_provider},
     )
 
     return AgentExecutionResponse(
