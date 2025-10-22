@@ -156,9 +156,9 @@ app.include_router(tenant_router)
 from ..auth.api_router import router as auth_router
 app.include_router(auth_router)
 
-# TODO: Include additional routers
-# from ..agents.api_router import router as agent_router
-# app.include_router(agent_router)
+# Agent execution router
+from ..agent_execution.api_router import router as agent_router
+app.include_router(agent_router)
 
 
 if __name__ == "__main__":

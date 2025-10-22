@@ -172,9 +172,53 @@ Example tenant configuration:
 - Performance-Based: Optional 5-10% revenue share
 - Implementation Fee: $10K-$100K one-time
 
+## Authentication Quick Start
+
+The platform includes a complete multi-tenant authentication system:
+
+```bash
+# 1. Register a user
+curl -X POST http://localhost:8000/auth/register \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: your_tenant_id" \
+  -d '{
+    "email": "user@example.com",
+    "password": "SecureP@ssw0rd!",
+    "first_name": "John",
+    "last_name": "Doe",
+    "user_type": "patient",
+    "role": "user"
+  }'
+
+# 2. Login and get access token
+curl -X POST http://localhost:8000/auth/login \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: your_tenant_id" \
+  -d '{
+    "email": "user@example.com",
+    "password": "SecureP@ssw0rd!"
+  }'
+
+# 3. Access protected endpoint
+curl http://localhost:8000/auth/me \
+  -H "Authorization: Bearer <access_token>"
+```
+
+**Features**:
+- JWT token authentication (24-hour expiration)
+- Argon2id password hashing (OWASP recommended)
+- 5-tier role-based access control (RBAC)
+- Password reset flow
+- Multi-tenant user isolation
+- 12 authentication endpoints
+
+See [Authentication Documentation](docs/AUTHENTICATION.md) for complete guide.
+
 ## Documentation
 
-- [Architecture Overview](docs/architecture.md)
+- [Getting Started](docs/GETTING_STARTED.md)
+- [Architecture Overview](docs/ARCHITECTURE.md)
+- [Authentication Guide](docs/AUTHENTICATION.md) ⭐ NEW!
 - [Agent Development Guide](docs/agent-development.md)
 - [Tenant Onboarding](docs/tenant-onboarding.md)
 - [API Reference](docs/api-reference.md)
