@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  # MongoDB for platform and tenant databases
+  mongodb:
+    image: mongo:7.0
+    container_name: agentic-talkdoc-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - agentic-talkdoc-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and session management
+  redis:
+    image: redis:7.0-alpine
+    container_name: agentic-talkdoc-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - agentic-talkdoc-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # FastAPI Backend (Platform Core)
+  backend:
+    build:
+      context: ./platform_core
+      dockerfile: Dockerfile
+    container_name: agentic-talkdoc-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=local
+      - PLATFORM_MONGO_DB_URL=mongodb://admin:password@mongodb:27017
+      - PLATFORM_MONGO_DB_NAME=agentic_talkdoc_platform
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./platform_core:/app
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - agentic-talkdoc-network
+    command: uvicorn api_gateway.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Admin Console (React)
+  admin-console:
+    build:
+      context: ./white-label-ui/admin-console
+      dockerfile: Dockerfile.dev
+    container_name: agentic-talkdoc-admin
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+    volumes:
+      - ./white-label-ui/admin-console:/app
+      - /app/node_modules
+    networks:
+      - agentic-talkdoc-network
+    command: npm run dev
+
+volumes:
+  mongodb_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  agentic-talkdoc-network:
+    driver: bridge

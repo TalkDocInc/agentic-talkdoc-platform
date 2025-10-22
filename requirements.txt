@@ -1,0 +1,77 @@
+# Core Framework
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+pydantic==2.9.0
+pydantic-settings==2.5.2
+python-dotenv==1.0.1
+
+# Database
+motor==3.6.0  # Async MongoDB driver
+pymongo==4.10.0
+redis==5.2.0
+
+# Authentication & Security
+python-jose[cryptography]==3.3.0
+passlib[argon2]==1.7.4
+python-multipart==0.0.12
+argon2-cffi==23.1.0
+
+# Agent Framework & AI
+langgraph==0.2.45
+langchain==0.3.7
+langchain-openai==0.2.9
+langchain-anthropic==0.2.4
+openai==1.54.4
+anthropic==0.39.0
+
+# AWS Services
+boto3==1.35.50
+mangum==0.18.0  # AWS Lambda adapter for FastAPI
+aioboto3==13.2.0
+
+# Task Queue & Workflow
+celery[redis]==5.4.0
+kombu==5.4.2
+
+# HTTP & API
+httpx==0.27.2
+requests==2.32.3
+aiohttp==3.11.7
+
+# Email & Communication
+emails==0.6.0
+python-ses==1.0.0
+
+# Date & Time
+pendulum==3.0.0
+python-dateutil==2.9.0
+
+# Utilities
+pyyaml==6.0.2
+jinja2==3.1.4
+tenacity==9.0.0  # Retry logic
+phonenumbers==8.13.48
+
+# Healthcare Specific
+hl7==0.4.5  # HL7 message parsing
+fhir.resources==7.1.0  # FHIR standard support
+
+# Logging & Monitoring
+structlog==24.4.0
+python-json-logger==3.1.0
+
+# Testing
+pytest==8.3.3
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+httpx==0.27.2  # For test client
+faker==30.8.2
+
+# Development Tools
+black==24.10.0
+ruff==0.7.3
+mypy==1.13.0
+pre-commit==4.0.1
+
+# Serverless Framework (for deployment)
+# Install globally: npm install -g serverless@3.38.0
