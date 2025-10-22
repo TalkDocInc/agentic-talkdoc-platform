@@ -493,7 +493,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) file for details
+Proprietary License - All Rights Reserved. See [LICENSE](LICENSE) file for details.
+
+This software is the exclusive property of TalkDoc. Unauthorized use, copying, modification, or distribution is strictly prohibited. For licensing inquiries, contact: licensing@talkdoc.com
 
 ## Contact
 
