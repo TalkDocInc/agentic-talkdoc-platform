@@ -495,7 +495,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 
 Licensed under the GNU Affero General Public License v3.0. See [LICENSE](LICENSE) for the complete terms.
 
-By using this platform, you agree to provide network users access to the complete corresponding source of any modified versions you deploy publicly, as required by the AGPL. For commercial support or alternative licensing inquiries, contact: licensing@talkdoc.com
+By using this platform, you agree to provide network users access to the complete corresponding source of any modified versions you deploy publicly, as required by the AGPL.
 
 ## Contact
 
